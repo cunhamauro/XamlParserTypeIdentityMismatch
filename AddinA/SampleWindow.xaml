@@ -1,0 +1,3 @@
+<i:ChangePropertyAction xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+                        PropertyName="Text"
+                        Value="Parsed by AddinA loose XAML" />

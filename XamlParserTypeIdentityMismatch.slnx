@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="AddinA/AddinA.csproj" />
+  <Project Path="AddinB/AddinB.csproj" />
+  <Project Path="Revit/Revit.csproj" />
+</Solution>
