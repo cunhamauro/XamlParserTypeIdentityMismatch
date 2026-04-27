@@ -1,8 +1,5 @@
-using System.IO;
 using System.Runtime.Loader;
-using Microsoft.Xaml.Behaviors;
-using Microsoft.Xaml.Behaviors.Core;
-using System.Windows.Markup;
+using SampleXamlLibrary;
 
 namespace AddinA;
 
@@ -10,14 +7,39 @@ public static class Main
 {
   public static void Start()
   {
-    var behaviorAssembly = typeof(Interaction).Assembly;
-    WriteInfo($"AddinA expects {behaviorAssembly.GetName().Name} from {AssemblyLoadContext.GetLoadContext(behaviorAssembly)?.Name}");
+    var window = new SampleWindow();
+    var templateAssembly = window.TemplateDataTypeAssembly;
+    WriteInfo($"AddinA template DataType resolved {FormatAssembly(templateAssembly)} from {FormatLoadContext(templateAssembly)}");
 
-    var looseXamlPath = Path.Combine(Path.GetDirectoryName(typeof(Main).Assembly.Location)!, "SampleWindow.xaml");
-    using var looseXaml = File.OpenRead(looseXamlPath);
-    var parsed = XamlReader.Load(looseXaml);
-    WriteInfo($"AddinA parser returned {parsed.GetType().Assembly.GetName().Name} from {AssemblyLoadContext.GetLoadContext(parsed.GetType().Assembly)?.Name}");
-    _ = (ChangePropertyAction)parsed;
+    var contentAssembly = window.CurrentContentAssembly;
+    WriteInfo($"AddinA content ViewModel is {FormatAssembly(contentAssembly)} from {AssemblyLoadContext.GetLoadContext(contentAssembly)?.Name}");
+    var hasTemplate = window.HasTemplateForCurrentContent();
+    WriteInfo($"AddinA implicit template match: {hasTemplate}");
+
+    var expectedAssembly = typeof(ViewModel).Assembly;
+    WriteInfo($"AddinA expects {FormatAssembly(expectedAssembly)} from {AssemblyLoadContext.GetLoadContext(expectedAssembly)?.Name}");
+    window.Close();
+
+    if (!hasTemplate)
+    {
+      throw new InvalidOperationException($"No implicit DataTemplate matched {window.CurrentContent}!");
+    }
+  }
+
+  private static string FormatAssembly(System.Reflection.Assembly? assembly)
+  {
+    if (assembly is null)
+    {
+      return "<none>";
+    }
+
+    var name = assembly.GetName();
+    return $"{name.Name}, Version={name.Version}";
+  }
+
+  private static string FormatLoadContext(System.Reflection.Assembly? assembly)
+  {
+    return assembly is null ? "<none>" : AssemblyLoadContext.GetLoadContext(assembly)?.Name ?? "<none>";
   }
 
   private static void WriteInfo(string message)

@@ -1,3 +1,16 @@
-<i:ChangePropertyAction xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
-                        PropertyName="Text"
-                        Value="Parsed by AddinB loose XAML" />
+<Window x:Class="AddinB.SampleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sample="http://schemas.local/xaml-parser-type-identity"
+        Title="AddinB Sample Window"
+        Height="240"
+        Width="480">
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type sample:ViewModel}">
+            <sample:UserControl />
+        </DataTemplate>
+    </Window.Resources>
+    <Grid>
+        <ContentControl x:Name="ContentHost" />
+    </Grid>
+</Window>

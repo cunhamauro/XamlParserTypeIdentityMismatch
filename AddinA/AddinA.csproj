@@ -9,13 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="*" />
-
-  </ItemGroup>
-
-  <ItemGroup>
-    <Page Remove="SampleWindow.xaml" />
-    <None Include="SampleWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\SampleXamlLibraryForAddinA\SampleXamlLibraryForAddinA.csproj" />
   </ItemGroup>
 
 </Project>

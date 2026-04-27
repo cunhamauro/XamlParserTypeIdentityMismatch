@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="AddinA/AddinA.csproj" />
   <Project Path="AddinB/AddinB.csproj" />
+  <Project Path="SampleXamlLibraryForAddinA/SampleXamlLibraryForAddinA.csproj" />
+  <Project Path="SampleXamlLibraryForAddinB/SampleXamlLibraryForAddinB.csproj" />
   <Project Path="Revit/Revit.csproj" />
 </Solution>
