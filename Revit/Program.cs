@@ -4,269 +4,275 @@ using System.Runtime.Loader;
 
 internal class Program
 {
-  private static readonly Dictionary<string, AddinLoadContext> LoadContextsByAddin = new();
-  private static readonly Dictionary<string, Assembly> SampleLibrariesByAddin = new();
-  private static Assembly? firstSampleLibrary;
+	private static readonly Dictionary<string, AddinLoadContext> LoadContextsByAddin = new();
+	private static readonly Dictionary<string, Assembly> SampleLibrariesByAddin = new();
+	private static Assembly? firstSampleLibrary;
 
-  // This controls if Addins are loaded from the start into Default ALC or isolated ALC
-  // Doesn't make any difference
-  private static bool LoadAddinsInDefaultALC = false;
+	// This controls if Addins are loaded from the start into Default ALC or isolated ALC
+	// Doesn't make any difference
+	private static bool LoadAddinsInDefaultALC = false;
 
-  // This controls if libraries are loaded into Default ALC or respective addin's isolated ALC
-  // If false => Results in type identity mismatch
-  // If true => Single instance is loaded and shared by all addins, no type identity mismatch
-  private static bool LoadSampleLibrariesInDefaultALC = false;
+	// This controls if libraries are loaded into Default ALC or respective addin's isolated ALC
+	// If false => Results in type identity mismatch
+	// If true => Single instance is loaded and shared by all addins, no type identity mismatch
+	private static bool LoadSampleLibrariesInDefaultALC = false;
 
-  // When there are two exact same libraries loaded into different ALCs
-  // And there is XAML which type references an assembly, it results in a mismatch because
-  // The XAML parser doesn't know which assembly to bind to and picks the first one it finds
+	// This controls if the WPF windows are instantiated with contextual reflection or not
+	// Doesn't make any difference in the outcome of this conflict, only difference is that it
+	private static bool UseContextualReflection = true;
 
-  [STAThread]
-  private static void Main()
-  {
-    var root = FindSolutionRoot();
-    var configuration = GetConfiguration();
-    var addinAPath = Path.Combine(root, "AddinA", "bin", configuration, "net8.0-windows", "AddinA.dll");
-    var addinBPath = Path.Combine(root, "AddinB", "bin", configuration, "net8.0-windows", "AddinB.dll");
+	// When there are two exact same libraries loaded into different ALCs
+	// And there is XAML which type references an assembly, it results in a mismatch because
+	// The XAML parser doesn't know which assembly to bind to and picks the first one it finds
 
-    AppDomain.CurrentDomain.AssemblyResolve += ResolveLikeHostGlobalResolver;
+	[STAThread]
+	private static void Main()
+	{
+		var root = FindSolutionRoot();
+		var configuration = GetConfiguration();
+		var addinAPath = Path.Combine(root, "AddinA", "bin", configuration, "net8.0-windows", "AddinA.dll");
+		var addinBPath = Path.Combine(root, "AddinB", "bin", configuration, "net8.0-windows", "AddinB.dll");
 
-    PreloadSampleLibrary("AddinA", addinAPath);
-    PreloadSampleLibrary("AddinB", addinBPath);
+		AppDomain.CurrentDomain.AssemblyResolve += ResolveLikeHostGlobalResolver;
 
-    bool addinAResult, addinBResult;
+		PreloadSampleLibrary("AddinA", addinAPath);
+		PreloadSampleLibrary("AddinB", addinBPath);
 
-    if (LoadAddinsInDefaultALC)
-    {
-      addinAResult = RunAddin("AddinA", addinAPath);
-      addinBResult = RunAddin("AddinB", addinBPath);
-    }
-    else
-    {
-      addinAResult = RunAddinInALC("AddinA", addinAPath);
-      addinBResult = RunAddinInALC("AddinB", addinBPath);
-    }
+		bool addinAResult, addinBResult;
 
-    Console.WriteLine();
-    WriteColored(
-      $"Result: AddinA={(addinAResult ? "OK" : "FAILED")}, AddinB={(addinBResult ? "OK" : "FAILED")}",
-      addinAResult && addinBResult ? ConsoleColor.Green : ConsoleColor.Red);
+		if (LoadAddinsInDefaultALC)
+		{
+			addinAResult = RunAddin("AddinA", addinAPath);
+			addinBResult = RunAddin("AddinB", addinBPath);
+		}
+		else
+		{
+			addinAResult = RunAddinInALC("AddinA", addinAPath);
+			addinBResult = RunAddinInALC("AddinB", addinBPath);
+		}
 
-    if (!addinAResult || !addinBResult)
-    {
-      Environment.ExitCode = 1;
-    }
-  }
+		Console.WriteLine();
+		WriteColored(
+		  $"Result: AddinA={(addinAResult ? "OK" : "FAILED")}, AddinB={(addinBResult ? "OK" : "FAILED")}",
+		  addinAResult && addinBResult ? ConsoleColor.Green : ConsoleColor.Red);
 
-  private static AddinLoadContext PreloadSampleLibrary(string addinName, string addinAssemblyPath)
-  {
-    if (LoadContextsByAddin.TryGetValue(addinName, out var existingAlc))
-    {
-      return existingAlc;
-    }
+		if (!addinAResult || !addinBResult)
+		{
+			Environment.ExitCode = 1;
+		}
+	}
 
-    var addinDirectory = Path.GetDirectoryName(addinAssemblyPath)!;
-    var sampleLibraryPath = Path.Combine(addinDirectory, "SampleXamlLibrary.dll");
-    var alc = new AddinLoadContext(addinName, addinAssemblyPath);
-    var assembly = LoadSampleLibrariesInDefaultALC
-      ? LoadSampleLibraryInDefault(sampleLibraryPath)
-      : alc.LoadFromAssemblyPath(sampleLibraryPath);
+	private static AddinLoadContext PreloadSampleLibrary(string addinName, string addinAssemblyPath)
+	{
+		if (LoadContextsByAddin.TryGetValue(addinName, out var existingAlc))
+		{
+			return existingAlc;
+		}
 
-    LoadContextsByAddin[addinName] = alc;
-    SampleLibrariesByAddin[addinName] = assembly;
-    firstSampleLibrary ??= assembly;
+		var addinDirectory = Path.GetDirectoryName(addinAssemblyPath)!;
+		var sampleLibraryPath = Path.Combine(addinDirectory, "SampleXamlLibrary.dll");
+		var alc = new AddinLoadContext(addinName, addinAssemblyPath);
+		var assembly = LoadSampleLibrariesInDefaultALC
+		  ? LoadSampleLibraryInDefault(sampleLibraryPath)
+		  : alc.LoadFromAssemblyPath(sampleLibraryPath);
 
-    WriteInfo($"{addinName} preloaded {FormatAssembly(assembly)} from {AssemblyLoadContext.GetLoadContext(assembly)?.Name}");
-    return alc;
-  }
+		LoadContextsByAddin[addinName] = alc;
+		SampleLibrariesByAddin[addinName] = assembly;
+		firstSampleLibrary ??= assembly;
 
-  private static Assembly LoadSampleLibraryInDefault(string sampleLibraryPath)
-  {
-    var assemblyName = AssemblyName.GetAssemblyName(sampleLibraryPath);
-    var existingAssembly = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
-      AssemblyName.ReferenceMatchesDefinition(assembly.GetName(), assemblyName));
+		WriteInfo($"{addinName} preloaded {FormatAssembly(assembly)} from {AssemblyLoadContext.GetLoadContext(assembly)?.Name}");
+		return alc;
+	}
 
-    if (existingAssembly is not null)
-    {
-      WriteInfo($"Default ALC already has {FormatAssembly(existingAssembly)} from {existingAssembly.Location}");
-      return existingAssembly;
-    }
+	private static Assembly LoadSampleLibraryInDefault(string sampleLibraryPath)
+	{
+		var assemblyName = AssemblyName.GetAssemblyName(sampleLibraryPath);
+		var existingAssembly = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
+		  AssemblyName.ReferenceMatchesDefinition(assembly.GetName(), assemblyName));
 
-    return AssemblyLoadContext.Default.LoadFromAssemblyPath(sampleLibraryPath);
-  }
+		if (existingAssembly is not null)
+		{
+			WriteInfo($"Default ALC already has {FormatAssembly(existingAssembly)} from {existingAssembly.Location}");
+			return existingAssembly;
+		}
 
-  private static bool RunAddin(string addinName, string assemblyPath)
-  {
-    Console.WriteLine();
-    WriteInfo($"Loading {addinName} into Default ALC from {assemblyPath}");
+		return AssemblyLoadContext.Default.LoadFromAssemblyPath(sampleLibraryPath);
+	}
 
-    try
-    {
-      var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+	private static bool RunAddin(string addinName, string assemblyPath)
+	{
+		Console.WriteLine();
+		WriteInfo($"Loading {addinName} into Default ALC from {assemblyPath}");
 
-      WriteInfo($"{addinName} assembly ALC: {AssemblyLoadContext.GetLoadContext(assembly)?.Name}");
-      InvokeStart(assembly, addinName);
-      WriteSuccess($"{addinName}: started successfully");
-      return true;
-    }
-    catch (TargetInvocationException ex) when (ex.InnerException is not null)
-    {
-      WriteFailure($"{addinName}: failed");
-      WriteFailure(ex.InnerException.ToString());
-      return false;
-    }
-    catch (Exception ex)
-    {
-      WriteFailure($"{addinName}: failed");
-      WriteFailure(ex.ToString());
-      return false;
-    }
-  }
+		try
+		{
+			var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
 
-  private static bool RunAddinInALC(string addinName, string assemblyPath)
-  {
-    Console.WriteLine();
-    WriteInfo($"Loading {addinName} into its own ALC from {assemblyPath}");
+			WriteInfo($"{addinName} assembly ALC: {AssemblyLoadContext.GetLoadContext(assembly)?.Name}");
+			InvokeStart(assembly, addinName);
+			WriteSuccess($"{addinName}: started successfully");
+			return true;
+		}
+		catch (TargetInvocationException ex) when (ex.InnerException is not null)
+		{
+			WriteFailure($"{addinName}: failed");
+			WriteFailure(ex.InnerException.ToString());
+			return false;
+		}
+		catch (Exception ex)
+		{
+			WriteFailure($"{addinName}: failed");
+			WriteFailure(ex.ToString());
+			return false;
+		}
+	}
 
-    var alc = GetPreloadedLoadContext(addinName);
+	private static bool RunAddinInALC(string addinName, string assemblyPath)
+	{
+		Console.WriteLine();
+		WriteInfo($"Loading {addinName} into its own ALC from {assemblyPath}");
 
-    try
-    {
-      var assembly = alc.LoadFromAssemblyPath(assemblyPath);
+		var alc = GetPreloadedLoadContext(addinName);
 
-      WriteInfo($"{addinName} assembly ALC: {AssemblyLoadContext.GetLoadContext(assembly)?.Name}");
-      InvokeStart(assembly, addinName);
-      WriteSuccess($"{addinName}: started successfully");
-      return true;
-    }
-    catch (TargetInvocationException ex) when (ex.InnerException is not null)
-    {
-      WriteFailure($"{addinName}: failed");
-      WriteFailure(ex.InnerException.ToString());
-      return false;
-    }
-    catch (Exception ex)
-    {
-      WriteFailure($"{addinName}: failed");
-      WriteFailure(ex.ToString());
-      return false;
-    }
-  }
+		try
+		{
+			var assembly = alc.LoadFromAssemblyPath(assemblyPath);
 
-  private static AddinLoadContext GetPreloadedLoadContext(string addinName)
-  {
-    return LoadContextsByAddin.TryGetValue(addinName, out var alc)
-      ? alc
-      : throw new InvalidOperationException($"Could not find preloaded ALC for {addinName}.");
-  }
+			WriteInfo($"{addinName} assembly ALC: {AssemblyLoadContext.GetLoadContext(assembly)?.Name}");
+			InvokeStart(assembly, addinName);
+			WriteSuccess($"{addinName}: started successfully");
+			return true;
+		}
+		catch (TargetInvocationException ex) when (ex.InnerException is not null)
+		{
+			WriteFailure($"{addinName}: failed");
+			WriteFailure(ex.InnerException.ToString());
+			return false;
+		}
+		catch (Exception ex)
+		{
+			WriteFailure($"{addinName}: failed");
+			WriteFailure(ex.ToString());
+			return false;
+		}
+	}
 
-  private sealed class AddinLoadContext : AssemblyLoadContext
-  {
-    private readonly string addinName;
-    private readonly AssemblyDependencyResolver resolver;
+	private static AddinLoadContext GetPreloadedLoadContext(string addinName)
+	{
+		return LoadContextsByAddin.TryGetValue(addinName, out var alc)
+		  ? alc
+		  : throw new InvalidOperationException($"Could not find preloaded ALC for {addinName}.");
+	}
 
-    public AddinLoadContext(string addinName, string mainAssemblyPath)
-      : base($"{addinName}-ALC", isCollectible: false)
-    {
-      this.addinName = addinName;
-      resolver = new AssemblyDependencyResolver(mainAssemblyPath);
-    }
+	private sealed class AddinLoadContext : AssemblyLoadContext
+	{
+		private readonly string addinName;
+		private readonly AssemblyDependencyResolver resolver;
 
-    protected override Assembly? Load(AssemblyName assemblyName)
-    {
-      if (assemblyName.Name == "SampleXamlLibrary" &&
-          SampleLibrariesByAddin.TryGetValue(addinName, out var sampleLibrary))
-      {
-        return sampleLibrary;
-      }
+		public AddinLoadContext(string addinName, string mainAssemblyPath)
+		  : base($"{addinName}-ALC", isCollectible: false)
+		{
+			this.addinName = addinName;
+			resolver = new AssemblyDependencyResolver(mainAssemblyPath);
+		}
 
-      var assemblyPath = resolver.ResolveAssemblyToPath(assemblyName);
-      return assemblyPath is null ? null : LoadFromAssemblyPath(assemblyPath);
-    }
+		protected override Assembly? Load(AssemblyName assemblyName)
+		{
+			if (assemblyName.Name == "SampleXamlLibrary" &&
+				SampleLibrariesByAddin.TryGetValue(addinName, out var sampleLibrary))
+			{
+				return sampleLibrary;
+			}
 
-    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-    {
-      var libraryPath = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-      return libraryPath is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(libraryPath);
-    }
-  }
+			var assemblyPath = resolver.ResolveAssemblyToPath(assemblyName);
+			return assemblyPath is null ? null : LoadFromAssemblyPath(assemblyPath);
+		}
 
-  private static Assembly? ResolveLikeHostGlobalResolver(object? sender, ResolveEventArgs args)
-  {
-    if (args.Name is null || new AssemblyName(args.Name).Name != "SampleXamlLibrary")
-    {
-      return null;
-    }
+		protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+		{
+			var libraryPath = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
+			return libraryPath is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(libraryPath);
+		}
+	}
 
-    var requestingAssemblyName = args.RequestingAssembly?.GetName().Name;
-    if (requestingAssemblyName is not null &&
-        SampleLibrariesByAddin.TryGetValue(requestingAssemblyName, out var addinSpecificAssembly))
-    {
-      WriteInfo($"Resolver returned {requestingAssemblyName}'s {FormatAssembly(addinSpecificAssembly)} from {AssemblyLoadContext.GetLoadContext(addinSpecificAssembly)?.Name}");
-      return addinSpecificAssembly;
-    }
+	private static Assembly? ResolveLikeHostGlobalResolver(object? sender, ResolveEventArgs args)
+	{
+		if (args.Name is null || new AssemblyName(args.Name).Name != "SampleXamlLibrary")
+		{
+			return null;
+		}
 
-    WriteInfo($"Resolver returned first global {FormatAssembly(firstSampleLibrary)} for requester {requestingAssemblyName ?? "<null>"}");
-    return firstSampleLibrary;
-  }
+		var requestingAssemblyName = args.RequestingAssembly?.GetName().Name;
+		if (requestingAssemblyName is not null &&
+			SampleLibrariesByAddin.TryGetValue(requestingAssemblyName, out var addinSpecificAssembly))
+		{
+			WriteInfo($"Resolver returned {requestingAssemblyName}'s {FormatAssembly(addinSpecificAssembly)} from {AssemblyLoadContext.GetLoadContext(addinSpecificAssembly)?.Name}");
+			return addinSpecificAssembly;
+		}
 
-  private static void InvokeStart(Assembly assembly, string addinName)
-  {
-    var mainType = assembly.GetType($"{addinName}.Main", throwOnError: true)!;
-    var startMethod = mainType.GetMethod("Start", BindingFlags.Public | BindingFlags.Static)
-      ?? throw new MissingMethodException(mainType.FullName, "Start");
+		WriteInfo($"Resolver returned first global {FormatAssembly(firstSampleLibrary)} for requester {requestingAssemblyName ?? "<null>"}");
+		return firstSampleLibrary;
+	}
 
-    startMethod.Invoke(null, null);
-  }
+	private static void InvokeStart(Assembly assembly, string addinName)
+	{
+		var mainType = assembly.GetType($"{addinName}.Main", throwOnError: true)!;
+		var startMethod = mainType.GetMethod(
+			"Start",
+			BindingFlags.Public | BindingFlags.Static)
+			?? throw new MissingMethodException(mainType.FullName, "Start");
 
-  private static string FormatAssembly(Assembly? assembly)
-  {
-    if (assembly is null)
-    {
-      return "<none>";
-    }
+		startMethod.Invoke(null, new object[] { UseContextualReflection });
+	}
 
-    var name = assembly.GetName();
-    return $"{name.Name}, Version={name.Version}";
-  }
+	private static string FormatAssembly(Assembly? assembly)
+	{
+		if (assembly is null)
+		{
+			return "<none>";
+		}
 
-  private static void WriteInfo(string message) => WriteColored(message, ConsoleColor.Blue);
+		var name = assembly.GetName();
+		return $"{name.Name}, Version={name.Version}";
+	}
 
-  private static void WriteSuccess(string message) => WriteColored(message, ConsoleColor.Green);
+	private static void WriteInfo(string message) => WriteColored(message, ConsoleColor.Blue);
 
-  private static void WriteFailure(string message) => WriteColored(message, ConsoleColor.Red);
+	private static void WriteSuccess(string message) => WriteColored(message, ConsoleColor.Green);
 
-  private static void WriteColored(string message, ConsoleColor color)
-  {
-    var previousColor = Console.ForegroundColor;
-    Console.ForegroundColor = color;
-    Console.WriteLine(message);
-    Console.ForegroundColor = previousColor;
-  }
+	private static void WriteFailure(string message) => WriteColored(message, ConsoleColor.Red);
 
-  private static string FindSolutionRoot()
-  {
-    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+	private static void WriteColored(string message, ConsoleColor color)
+	{
+		var previousColor = Console.ForegroundColor;
+		Console.ForegroundColor = color;
+		Console.WriteLine(message);
+		Console.ForegroundColor = previousColor;
+	}
 
-    while (directory is not null)
-    {
-      if (File.Exists(Path.Combine(directory.FullName, "XamlParserTypeIdentityMismatch.slnx")))
-      {
-        return directory.FullName;
-      }
+	private static string FindSolutionRoot()
+	{
+		var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
-      directory = directory.Parent;
-    }
+		while (directory is not null)
+		{
+			if (File.Exists(Path.Combine(directory.FullName, "XamlParserTypeIdentityMismatch.slnx")))
+			{
+				return directory.FullName;
+			}
 
-    throw new DirectoryNotFoundException("Could not find XamlParserTypeIdentityMismatch.slnx above the host output directory.");
-  }
+			directory = directory.Parent;
+		}
 
-  private static string GetConfiguration()
-  {
+		throw new DirectoryNotFoundException("Could not find XamlParserTypeIdentityMismatch.slnx above the host output directory.");
+	}
+
+	private static string GetConfiguration()
+	{
 #if DEBUG
-    return "Debug";
+		return "Debug";
 #else
     return "Release";
 #endif
-  }
+	}
 }
