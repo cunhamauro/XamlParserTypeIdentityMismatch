@@ -5,48 +5,70 @@ namespace AddinB;
 
 public static class Main
 {
-  public static void Start()
-  {
-    var window = new SampleWindow();
-    var templateAssembly = window.TemplateDataTypeAssembly;
-    WriteInfo($"AddinB template DataType resolved {FormatAssembly(templateAssembly)} from {FormatLoadContext(templateAssembly)}");
+	public static void Start()
+	{
+		var thisALC = AssemblyLoadContext.GetLoadContext(typeof(Main).Assembly);
+		using (thisALC!.EnterContextualReflection())
+		{
+			WriteInfo(
+				$"Contextual ALC = " +
+				$"{AssemblyLoadContext.CurrentContextualReflectionContext?.Name}");
 
-    var contentAssembly = window.CurrentContentAssembly;
-    WriteInfo($"AddinB content ViewModel is {FormatAssembly(contentAssembly)} from {AssemblyLoadContext.GetLoadContext(contentAssembly)?.Name}");
-    var hasTemplate = window.HasTemplateForCurrentContent();
-    WriteInfo($"AddinB implicit template match: {hasTemplate}");
+			WriteInfo(
+				$"Main ALC = " +
+				$"{AssemblyLoadContext.GetLoadContext(typeof(Main).Assembly)?.Name}");
 
-    var expectedAssembly = typeof(ViewModel).Assembly;
-    WriteInfo($"AddinB expects {FormatAssembly(expectedAssembly)} from {AssemblyLoadContext.GetLoadContext(expectedAssembly)?.Name}");
-    window.Close();
+			WriteInfo(
+				$"ViewModel ALC = " +
+				$"{AssemblyLoadContext.GetLoadContext(typeof(ViewModel).Assembly)?.Name}");
 
-    if (!hasTemplate)
-    {
-      throw new InvalidOperationException($"No implicit DataTemplate matched {window.CurrentContent}!");
-    }
-  }
+			var window = new SampleWindow();
+			var templateAssembly = window.TemplateDataTypeAssembly;
 
-  private static string FormatAssembly(System.Reflection.Assembly? assembly)
-  {
-    if (assembly is null)
-    {
-      return "<none>";
-    }
+			WriteInfo(
+				$"XAML DataType ALC = " +
+				$"{AssemblyLoadContext.GetLoadContext(templateAssembly)?.Name}");
 
-    var name = assembly.GetName();
-    return $"{name.Name}, Version={name.Version}";
-  }
+			WriteInfo($"AddinB template DataType resolved {FormatAssembly(templateAssembly)} from {FormatLoadContext(templateAssembly)}");
 
-  private static string FormatLoadContext(System.Reflection.Assembly? assembly)
-  {
-    return assembly is null ? "<none>" : AssemblyLoadContext.GetLoadContext(assembly)?.Name ?? "<none>";
-  }
+			var contentAssembly = window.CurrentContentAssembly;
+			WriteInfo($"AddinB content ViewModel is {FormatAssembly(contentAssembly)} from {AssemblyLoadContext.GetLoadContext(contentAssembly)?.Name}");
+			var hasTemplate = window.HasTemplateForCurrentContent();
+			WriteInfo($"AddinB implicit template match: {hasTemplate}");
 
-  private static void WriteInfo(string message)
-  {
-    var previousColor = Console.ForegroundColor;
-    Console.ForegroundColor = ConsoleColor.Blue;
-    Console.WriteLine(message);
-    Console.ForegroundColor = previousColor;
-  }
+			var expectedAssembly = typeof(ViewModel).Assembly;
+			WriteInfo($"AddinB expects {FormatAssembly(expectedAssembly)} from {AssemblyLoadContext.GetLoadContext(expectedAssembly)?.Name}");
+			window.Close();
+
+			if (!hasTemplate)
+			{
+				throw new InvalidOperationException($"No implicit DataTemplate matched {window.CurrentContent}!");
+			}
+		}
+
+	}
+
+	private static string FormatAssembly(System.Reflection.Assembly? assembly)
+	{
+		if (assembly is null)
+		{
+			return "<none>";
+		}
+
+		var name = assembly.GetName();
+		return $"{name.Name}, Version={name.Version}";
+	}
+
+	private static string FormatLoadContext(System.Reflection.Assembly? assembly)
+	{
+		return assembly is null ? "<none>" : AssemblyLoadContext.GetLoadContext(assembly)?.Name ?? "<none>";
+	}
+
+	private static void WriteInfo(string message)
+	{
+		var previousColor = Console.ForegroundColor;
+		Console.ForegroundColor = ConsoleColor.Blue;
+		Console.WriteLine(message);
+		Console.ForegroundColor = previousColor;
+	}
 }
