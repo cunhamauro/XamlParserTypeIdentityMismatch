@@ -2,6 +2,12 @@
 
 This repository explores a WPF BAML/XAML type-resolution problem in applications that use multiple `AssemblyLoadContext` (ALC) instances.
 
+Read more about this @:
+- https://github.com/dotnet/wpf/issues/1700
+- https://github.com/dotnet/wpf/issues/11848
+- https://github.com/dotnet/wpf/pull/11849
+- https://forums.autodesk.com/t5/revit-api-forum/revit-2027-manifestsettings-deduplication-mechanism-from-revit/td-p/14105252
+
 ## Projects
 
 | Project | Role |
